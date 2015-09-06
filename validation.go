@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 	"net"
+	"fmt"
 )
 type AttributeDataType uint8
 const (
@@ -66,12 +67,16 @@ func DecodeUserPassword(p *Packet, a *AVP)(error){
 		m := crypto.Hash(crypto.MD5).New()
 		m.Write(secAuth)
 		md := m.Sum(nil)
-		pass := a.Value
+		ps := p.Attributes(UserPassword)
+		pass := ps[0].Value
 		if len(pass) == 16 {
 			for i:=0;i<len(pass);i++ {
 				pass[i] = pass[i] ^ md[i] 
 			}
+			fmt.Println(a)
 			a.Value = bytes.TrimRight(pass, string([]rune{0}))
+			fmt.Println(a)
+
 			return nil
 		} 
 		return errors.New("not implemented for password > 16")

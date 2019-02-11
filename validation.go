@@ -7,7 +7,6 @@ import (
 	"errors"
 	"time"
 	"net"
-	"fmt"
 )
 type AttributeDataType uint8
 const (
@@ -61,25 +60,33 @@ func (v Validation) Validate(p *Packet,attr *AVP)(error){
 }
 
 func DecodeUserPassword(p *Packet, a *AVP)(error){
+	// todo: 密码超过16位时的解密方法： http://www.untruth.org/~josh/security/radius/radius-auth.html
 	//Decode password. XOR against md5(p.server.secret+Authenticator)
-		secAuth := append([]byte(nil), []byte(p.server.secret)...)
-		secAuth = append(secAuth, p.Authenticator[:]...)
-		m := crypto.Hash(crypto.MD5).New()
-		m.Write(secAuth)
-		md := m.Sum(nil)
+		sec := append([]byte(nil), []byte(p.server.secret)...)
+
+		md := md5(append(sec, p.Authenticator[:]...))
 		ps := p.Attributes(UserPassword)
 		pass := ps[0].Value
-		if len(pass) == 16 {
-			for i:=0;i<len(pass);i++ {
-				pass[i] = pass[i] ^ md[i] 
+		lenPass := len(pass)
+		var block [16]byte
+		var pwd []byte
+		for j := 0; j < lenPass/16;j++ {
+			s := j*16
+			for i := 0;i < 16;i++ {
+				block[i] = pass[s+i] ^ md[i]
 			}
-			fmt.Println(a)
-			a.Value = bytes.TrimRight(pass, string([]rune{0}))
-			fmt.Println(a)
+			pwd = append(pwd, block[:]...)
+			sec = append([]byte(nil), sec...)
+			md = md5(append(sec, pass[s:s+16]...))
+		}
+		a.Value = bytes.TrimRight(pwd, string([]rune{0}))
 
-			return nil
-		} 
-		return errors.New("not implemented for password > 16")
+		return nil
+}
+func md5(s []byte) []byte{
+	m := crypto.Hash(crypto.MD5).New()
+	m.Write(s)
+	return m.Sum(nil)
 }
 var validation  = map[AttributeType]Validation {
 	UserName: {STRING,1,UNLIMITED,nil},

@@ -20,17 +20,20 @@ type Service interface {
 
 type PasswordService struct{}
 
-func (p *PasswordService) Authenticate(request *Packet) (*Packet, error) {
+func (p *PasswordService) Authenticate(request *Packet) ( *Packet, error) {
+
 	avp := &AVP{Type:UserPassword}
-	fmt.Print(request)
+//	fmt.Print(request)
 //	err := (&Validation{}).Validate(request, avp)
 //	if err != nil {
 //		//这里可以返回错误的
 //	}
-	DecodeUserPassword(request, avp)
-	fmt.Print(avp)
+	err := DecodeUserPassword(request, avp)
+	if err != nil {
+		return nil, err
+	}
 	username := request.Attributes(UserName)
-	err := Authenticate(string(username[0].Value), string(avp.Value))
+	err = Authenticate(string(username[0].Value), string(avp.Value))
 	npac := request.Reply()
 	if err != nil {
 		npac.Code = AccessReject
@@ -40,6 +43,7 @@ func (p *PasswordService) Authenticate(request *Packet) (*Packet, error) {
 		npac.Code = AccessAccept
 		npac.AVPs = append(npac.AVPs, AVP{Type: ReplyMessage, Value: []byte("succ!")})
 	}
+	println("\n\n")
 	return npac, nil
 }
 func NewServer(addr string, secret string) *Server {
@@ -59,6 +63,9 @@ func (s *Server) ListenAndServe() error {
 	if err != nil {
 		return err
 	}
+	defer func(conn *net.UDPConn) {
+		conn.Close()
+	}(conn)
 	service := s.services["auth"]
 	var b [512]byte
 	for {
@@ -73,7 +80,7 @@ func (s *Server) ListenAndServe() error {
 		if err != nil {
 			return err
 		}
-
+		fmt.Printf("%v", pac)
 //		ips := pac.Attributes(NASIPAddress)
 //
 //		if len(ips) != 1 {
@@ -89,6 +96,7 @@ func (s *Server) ListenAndServe() error {
 //
 //			//reject
 //		}
+		fmt.Printf("%v\n", pac)
 		npac, err := service.Authenticate(pac)
 		if err != nil {
 			return err
@@ -100,3 +108,4 @@ func (s *Server) ListenAndServe() error {
 	}
 	return nil
 }
+
